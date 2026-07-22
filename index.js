@@ -159,8 +159,8 @@ client.on('interactionCreate', async (interaction) => {
             const categoryType = interaction.customId.replace('modal_ticket_', '');
            
             // Formulardaten auslesen
-            const teamName = interaction.fields.getTextInputValue('ticket_teamname').trim() || 'Keine Angabe';
-            const details = interaction.fields.getTextInputValue('ticket_details').trim() || 'Keine Details angegeben';
+            const teamName = interaction.fields.getTextInputValue('ticket_teamname') || 'Keine Angabe';
+            const details = interaction.fields.getTextInputValue('ticket_details') || 'Keine Details angegeben';
             const member = interaction.member;
 
             let categoryName = 'Support';
@@ -175,7 +175,7 @@ client.on('interactionCreate', async (interaction) => {
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
 
-            // Explizite Rechtevergabe, damit der Bot den neuen Kanal uneingeschränkt beschreiben darf
+            // Kanalberechtigungen
             const permissionOverwrites = [
                 {
                     id: guild.roles.everyone.id,
@@ -189,17 +189,6 @@ client.on('interactionCreate', async (interaction) => {
                         PermissionFlagsBits.ReadMessageHistory,
                         PermissionFlagsBits.AttachFiles,
                         PermissionFlagsBits.EmbedLinks
-                    ]
-                },
-                {
-                    id: guild.members.me.id,
-                    allow: [
-                        PermissionFlagsBits.ViewChannel,
-                        PermissionFlagsBits.SendMessages,
-                        PermissionFlagsBits.ReadMessageHistory,
-                        PermissionFlagsBits.AttachFiles,
-                        PermissionFlagsBits.EmbedLinks,
-                        PermissionFlagsBits.ManageChannels
                     ]
                 }
             ];
@@ -232,15 +221,15 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // Bestätigung für den Nutzer anzeigen
+            // Bestätigung an den Nutzer anzeigen
             await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
 
-            // DAS FORMULAR IN DEN KANAL SCHREIBEN (Embed + Buttons)
+            // Formular-Inhalt als Embed aufbauen
             const welcomeEmbed = new EmbedBuilder()
                 .setTitle(`📩 Support-Ticket: ${categoryName}`)
                 .setDescription(
                     `Hallo ${member}!\n\n` +
-                    `Deine Formulardaten wurden erfasst:\n\n` +
+                    `Deine Angaben wurden erfasst:\n\n` +
                     `• **Verein / Team:** ${teamName}\n` +
                     `• **Anliegen:**\n> ${details}\n\n` +
                     `Ein Support-Mitarbeiter wird sich in Kürze bei dir melden. Falls du dringend einen Admin brauchst, klicke auf **"Admin rufen 🔔"**.`
@@ -248,10 +237,11 @@ client.on('interactionCreate', async (interaction) => {
                 .setColor('#0099FF')
                 .setTimestamp();
 
+            // GÜLTIGE BUTTON-STYLES (Primary = Blau/1, Danger = Rot/4)
             const callAdminBtn = new ButtonBuilder()
                 .setCustomId('btn_call_admin')
                 .setLabel('Admin rufen 🔔')
-                .setStyle(ButtonStyle.Warning);
+                .setStyle(ButtonStyle.Primary);
 
             const closeBtn = new ButtonBuilder()
                 .setCustomId('close_ticket')
@@ -260,11 +250,11 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(callAdminBtn, closeBtn);
 
-            // Nachricht direkt in den neuen Ticket-Kanal senden
+            // Nachricht in den neu erstellten Ticket-Kanal senden
             try {
                 await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
             } catch (sendErr) {
-                console.error("Fehler beim Senden im Ticket-Kanal:", sendErr);
+                console.error("Fehler beim Senden der Willkommensnachricht:", sendErr);
             }
 
             // KI Erst-Antwort (falls OpenAI Key hinterlegt ist)
