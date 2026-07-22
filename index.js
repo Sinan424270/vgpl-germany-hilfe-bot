@@ -12,7 +12,7 @@ const {
 const OpenAI = require('openai');
 
 console.log("==================================================");
-console.log("VGPL KI-Hilfe-Bot wird gestartet...");
+console.log("VGPL Support-System wird gestartet...");
 console.log("==================================================");
 
 const client = new Client({
@@ -23,12 +23,12 @@ const client = new Client({
     ]
 });
 
-// OpenAI Config (ChatGPT)
+// OpenAI Config
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// CONFIG - EINGESETZTE KANAL- & KATEGORIE-IDs
+// CONFIG - EINGESETZTE IDs
 const CONFIG = {
     TOKEN: process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.trim() : '',
     HELP_PANEL_CHANNEL_ID: '1527708821320106164',   // Hilfe-Kanal
@@ -37,63 +37,61 @@ const CONFIG = {
     HEAD_ADMIN_ROLE_NAME: 'Head Admin'             // Name der Head Admin-Rolle
 };
 
-// Express Webserver für Render (damit der Bot online bleibt)
+// Express Webserver für Render
 const http = require('http');
 const port = process.env.PORT || 10000;
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('VGPL Germany KI Support Bot laeuft online!\n');
+    res.end('VGPL Support Bot laeuft online!\n');
 }).listen(port, () => {
     console.log(`[WEBSERVER] Aktiv auf Port ${port}`);
 });
 
-// SYSTEM PROMPT MIT DEM OFFIZIELLEN REGELWERK (FC 26)
+// SYSTEM PROMPT MIT DEM OFFIZIELLEN REGELWERK
 const SYSTEM_RULESET = `
-Du bist der offizielle KI-Support-Assistent der 'VGPL Germany' (virtual Gaming Premier League - EA SPORTS FC Pro Clubs).
-Antworte immer höflich, präzise, übersichtlich und hilfsbereit auf Deutsch.
+Du bist der offizielle Support-Assistent der 'VGPL Germany' (virtual Gaming Premier League - EA SPORTS FC Pro Clubs).
+Antworte immer höflich, präzise, übersichtlich und hilfsbereit auf Deutsch. Stell dich NICHT als Roboter oder KI vor, sondern antworte direkt, professionell und wie ein echtes Support-Teammitglied.
 
 Hier ist das offizielle VGPL Regelwerk (FC 26 Saison 1), nach dem du alle Fragen beantwortest:
 
-1. KADER & MANAGEMENT:
-- Jeder Verein benötigt 1 Manager, 1 Co-Manager und mindestens 7 aktive Spieler.
-- Ein Team darf ein Spiel erst ab 7 Spielern beginnen.
-- Jeder Spieler darf nur 1 VGPL-Konto haben und pro Saison nur für 1 Verein spielen.
+1. [span_0](start_span)KADER & MANAGEMENT[span_0](end_span):
+- [span_1](start_span)Jeder Verein benötigt 1 Manager, 1 Co-Manager und mindestens 7 aktive Spieler[span_1](end_span).
+- [span_2](start_span)Ein Team darf ein Spiel erst ab 7 Spielern beginnen[span_2](end_span).
+- [span_3](start_span)Jeder Spieler darf nur 1 VGPL-Konto haben und pro Saison nur für 1 Verein spielen[span_3](end_span).
 
-2. GRÖSSENLIMITS & FORMATIONEN (§17):
-- Innenverteidiger (IV): Maximal 1,87 m.
-- Alle übrigen Feldspieler: Maximal 1,82 m.
-- Torhüter (TW): Keine Größenbeschränkung.
-- Formationsregeln:
-  * 3er-Kette: max. 3 IVs mit 1,87 m.
-  * 4er-Kette: max. 2 IVs mit 1,87 m + zusätzlich darf 1 ZDM 1,87 m groß sein.
-  * 5er-Kette: max. 3 IVs mit 1,87 m.
+2. [span_4](start_span)GRÖSSENLIMITS & FORMATIONEN (§17)[span_4](end_span):
+- [span_5](start_span)Innenverteidiger (IV): Maximal 1,87 m[span_5](end_span).
+- [span_6](start_span)Alle übrigen Feldspieler: Maximal 1,82 m[span_6](end_span).
+- [span_7](start_span)Torhüter (TW): Keine Größenbeschränkung[span_7](end_span).
+- [span_8](start_span)Formationsregeln[span_8](end_span):
+  * 3er-Kette: max. [span_9](start_span)3 IVs mit 1,87 m[span_9](end_span).
+  * 4er-Kette: max. [span_10](start_span)2 IVs mit 1,87 m + zusätzlich darf 1 ZDM 1,87 m groß sein[span_10](end_span).
+  * 5er-Kette: max. [span_11](start_span)3 IVs mit 1,87 m[span_11](end_span).
 
-3. STREAMPFLICHT (§19):
-- Alle Ligaspiele MÜSSEN live auf Twitch, YouTube oder Kick übertragen werden.
-- Streamlink spätestens 5 Minuten vor Spielbeginn im Discord posten!
-- Das VOD muss mindestens 48 Stunden gespeichert bleiben.
+3. [span_12](start_span)STREAMPFLICHT (§19)[span_12](end_span):
+- [span_13](start_span)Alle Ligaspiele MÜSSEN live auf Twitch, YouTube oder Kick übertragen werden[span_13](end_span).
+- [span_14](start_span)Streamlink spätestens 5 Minuten vor Spielbeginn im Discord posten[span_14](end_span)!
+- [span_15](start_span)Das VOD muss mindestens 48 Stunden gespeichert bleiben[span_15](end_span).
 
-4. SPIELBETRIEB & DISCONNECTS (§6, §7, §20):
-- Wartezeit bei Verspätung: maximal 10 Minuten. Danach ist ein 0:3 Wertungsantrag möglich.
-- Disconnect vor Minute 10 (kein Tor, keine rote Karte): Spiel wird neu gestartet.
-- Live-Join Verbot: Nach Anpfiff darf kein Spieler per Live-Join beitreten! Strafe: Sofort 0:3 Wertung gegen das Team.
+4. [span_16](start_span)[span_17](start_span)[span_18](start_span)SPIELBETRIEB & DISCONNECTS (§6, §7, §20)[span_16](end_span)[span_17](end_span)[span_18](end_span):
+- [span_19](start_span)Wartezeit bei Verspätung: maximal 10 Minuten[span_19](end_span). [span_20](start_span)Danach ist ein 0:3 Wertungsantrag möglich[span_20](end_span).
+- [span_21](start_span)Disconnect vor Minute 10 (kein Tor, keine rote Karte): Spiel wird neu gestartet[span_21](end_span).
+- [span_22](start_span)Live-Join Verbot: Nach Anpfiff darf kein Spieler per Live-Join beitreten[span_22](end_span)! [span_23](start_span)Strafe: Sofort 0:3 Wertung gegen das Team[span_23](end_span).
 
-5. PROTESTE & BEWEISE (§10, §21, §22):
-- Proteste müssen innerhalb von 24 Stunden nach Spielende mit Video-/Bildbeweisen eingereicht werden.
-- Endergebnis- und Match-Facts-Screenshots müssen von jedem Verein gesichert werden.
+5. [span_24](start_span)[span_25](start_span)[span_26](start_span)PROTESTE & BEWEISE (§10, §21, §22)[span_24](end_span)[span_25](end_span)[span_26](end_span):
+- [span_27](start_span)[span_28](start_span)Proteste müssen innerhalb von 24 Stunden nach Spielende mit Video-/Bildbeweisen eingereicht werden[span_27](end_span)[span_28](end_span).
+- [span_29](start_span)[span_30](start_span)[span_31](start_span)Endergebnis- und Match-Facts-Screenshots müssen von jedem Verein gesichert werden[span_29](end_span)[span_30](end_span)[span_31](end_span).
 
-6. GESCHLECHTERREGELUNG (§18):
-- Das Spielerprofil/Pro muss dem tatsächlichen Geschlecht des echten Spielers entsprechen.
+6. [span_32](start_span)GESCHLECHTERREGELUNG (§18)[span_32](end_span):
+- [span_33](start_span)Das Spielerprofil/Pro muss dem tatsächlichen Geschlecht des echten Spielers entsprechen[span_33](end_span).
 
-Anweisungen an dich:
-- Wenn du eine Frage anhand des Regelwerks beantworten kannst, antworte direkt, klar und höflich.
-- Falls der User ein komplexes Problem hat oder nach einem Admin fragt, weise ihn freundlich darauf hin, auf den Button "Admin rufen 🔔" zu klicken.
+Anweisungen:
+- Antworte auf Fragen direkt, freundlich und auf den Punkt.
+- Wenn du eine Frage nicht beantworten kannst oder der User ein spezielles Anliegen hat, weise ihn höflich auf den Button "Admin rufen 🔔" hin.
 `;
 
 client.once('ready', async () => {
-    console.log("==================================================");
-    console.log(`🎉 KI-Hilfe-Bot ERFOLGREICH EINGELOGGT als ${client.user.tag}`);
-    console.log("==================================================");
+    console.log(`🎉 VGPL Support-Bot ERFOLGREICH EINGELOGGT als ${client.user.tag}`);
 
     try {
         const helpChannel = await client.channels.fetch(CONFIG.HELP_PANEL_CHANNEL_ID).catch(() => null);
@@ -103,24 +101,27 @@ client.once('ready', async () => {
 
             if (!hasPanel) {
                 const embed = new EmbedBuilder()
-                    .setTitle('❓ VGPL Germany - Hilfe & Support')
-                    .setDescription('Wähle unten im Menü die passende Kategorie, um ein Support-Ticket zu öffnen.\n\nUnser **KI-Assistent** antwortet dir direkt im Ticket auf Basis des offiziellen Regelwerks!')
-                    .setColor('#00AAFF')
-                    .setFooter({ text: 'VGPL Germany Support System' });
+                    .setTitle('🛡️ VGPL Germany — Support & Hilfe')
+                    .setDescription(
+                        'Willkommen beim offiziellen Support-System der VGPL Germany!\n\n' +
+                        'Wähle unten im Dropdown-Menü die passende Kategorie aus, um ein privates Ticket zu erstellen. Unser Team hilft dir umgehend bei deinen Fragen weiter.'
+                    )
+                    .setColor('#0099FF')
+                    .setFooter({ text: 'VGPL Germany • Official Support' });
 
                 const selectMenu = new StringSelectMenuBuilder()
                     .setCustomId('select_help_category')
-                    .setPlaceholder('Wähle eine Support-Kategorie...')
+                    .setPlaceholder('📂 Kategorie auswählen...')
                     .addOptions([
-                        { label: 'Allgemeine Fragen', value: 'cat_allgemein', description: 'Fragen zu Ligaroutinen, Terminen oder Ablauf', emoji: '❓' },
-                        { label: 'Regelwerk & Größenlimits', value: 'cat_regeln', description: 'Fragen zu IV-Größen, Streams, Disconnects etc.', emoji: '📜' },
-                        { label: 'Technik & Discord/Website', value: 'cat_technik', description: 'Probleme mit der Website oder Rängen', emoji: '🛠️' },
-                        { label: 'Sonstiges / Admin-Kontakt', value: 'cat_admin', description: 'Direkter Kontakt zur Ligaleitung', emoji: '📩' }
+                        { label: 'Allgemeine Fragen', value: 'cat_allgemein', description: 'Fragen zu Terminen, Ligaroutinen oder Ablauf', emoji: '❓' },
+                        { label: 'Regelwerk & Größenlimits', value: 'cat_regeln', description: 'Fragen zu IV-Größen, Streams, Disconnects', emoji: '📜' },
+                        { label: 'Technik & Discord/Website', value: 'cat_technik', description: 'Probleme mit der Website, Discord oder Rängen', emoji: '🛠️' },
+                        { label: 'Ligaleitung / Admin-Kontakt', value: 'cat_admin', description: 'Direktes Anliegen an das Admin-Team', emoji: '📩' }
                     ]);
 
                 const row = new ActionRowBuilder().addComponents(selectMenu);
                 await helpChannel.send({ embeds: [embed], components: [row] });
-                console.log('Hilfe-Panel erfolgreich gesendet!');
+                console.log('Support-Panel erfolgreich gesendet!');
             }
         }
     } catch (err) {
@@ -144,7 +145,7 @@ client.on('interactionCreate', async (interaction) => {
             if (selectedValue === 'cat_allgemein') categoryName = 'Allgemein';
             if (selectedValue === 'cat_regeln') categoryName = 'Regelwerk';
             if (selectedValue === 'cat_technik') categoryName = 'Technik';
-            if (selectedValue === 'cat_admin') categoryName = 'Admin-Hilfe';
+            if (selectedValue === 'cat_admin') categoryName = 'Admin';
 
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
@@ -165,10 +166,17 @@ client.on('interactionCreate', async (interaction) => {
                 permissionOverwrites: permissionOverwrites
             });
 
+            // SCHÖNES, SAUBERES EMBED OHNE KI-ASSISTENT TEXT
             const welcomeEmbed = new EmbedBuilder()
-                .setTitle(`❓ Support-Ticket: ${categoryName}`)
-                .setDescription(`Hallo ${member}! Ich bin der **VGPL KI-Support-Assistent** 🤖.\n\nSchreib mir einfach deine Frage. Ich kenne das komplette **VGPL Regelwerk FC 26** und helfe dir sofort!\n\n*Falls du mit einem Admin sprechen möchtest, klicke unten auf **"Admin rufen 🔔"**.*`)
-                .setColor('#00AAFF')
+                .setTitle(`📩 Ticket eröffnet: ${categoryName}`)
+                .setDescription(
+                    `Hallo ${member}!\n\n` +
+                    `Vielen Dank für deine Anfrage. Bitte schildere dein Anliegen so genau wie möglich.\n\n` +
+                    `• **Kategorie:** ${categoryName}\n` +
+                    `• **Status:** Offen\n\n` +
+                    `Falls du direkt ein Teammitglied hinzurufen möchtest, klicke einfach auf den Button **"Admin rufen 🔔"**.`
+                )
+                .setColor('#0099FF')
                 .setTimestamp();
 
             const callAdminBtn = new ButtonBuilder()
@@ -185,7 +193,8 @@ client.on('interactionCreate', async (interaction) => {
 
             await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
 
-            await interaction.editReply({ content: `Dein Support-Ticket wurde erstellt: ${ticketChannel}`, ephemeral: true });
+            // Ephemerale Bestätigung an den User senden
+            await interaction.editReply({ content: `✅ Dein Support-Ticket wurde erstellt: ${ticketChannel}` });
         }
 
         // 2. ADMIN RUFEN BUTTON
@@ -193,7 +202,7 @@ client.on('interactionCreate', async (interaction) => {
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
 
-            let pingMessage = `🔔 **ADMIN ANFORDERUNG!** ${interaction.user} benötigt Unterstützung von der Ligaleitung!`;
+            let pingMessage = `🔔 **ADMIN ANFORDERUNG!** ${interaction.user} benötigt Unterstützung von einem Admin!`;
             const mentions = [];
             if (adminRole) { pingMessage += ` ${adminRole}`; mentions.push(adminRole.id); }
             if (headAdminRole) { pingMessage += ` ${headAdminRole}`; mentions.push(headAdminRole.id); }
@@ -206,15 +215,15 @@ client.on('interactionCreate', async (interaction) => {
 
         // 3. TICKET SCHLIESSEN
         if (interaction.isButton() && interaction.customId === 'close_ticket') {
-            await interaction.reply({ content: '🔒 Dieses Ticket wird in 5 Sekunden gelöscht...' });
+            await interaction.reply({ content: '🔒 Ticket wird in 5 Sekunden geschlossen...' });
             setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
         }
     } catch (err) {
-        console.error("Fehler bei der Interaktion:", err);
+        console.error("Fehler bei Interaktion:", err);
     }
 });
 
-// 4. KI ANTWORTET IM TICKET
+// 4. SUPPORTEINGABE & KI ANTWORT IM TICKET
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.channel.name.startsWith('ticket-')) return;
@@ -236,7 +245,7 @@ client.on('messageCreate', async (message) => {
 
     } catch (err) {
         console.error("OpenAI API Fehler:", err);
-        await message.reply("⚠️ Ich konnte deine Anfrage gerade nicht verarbeiten. Bitte klicke auf **'Admin rufen 🔔'**, um direkt Hilfe zu bekommen!");
+        await message.reply("⚠️ Bitte nutze den **'Admin rufen 🔔'** Button, um direkt Hilfe von einem Teammitglied zu erhalten.");
     }
 });
 
