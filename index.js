@@ -86,16 +86,16 @@ client.once('ready', async () => {
                     .setColor('#0099FF')
                     .setFooter({ text: 'VGPL Germany • Official Support' });
 
-                // DIE 7 EXAKTEN KATEGORIEN
+                // DIE 7 KATEGORIEN MIT KORRIGIERTER BESCHREIBUNG
                 const selectMenu = new StringSelectMenuBuilder()
                     .setCustomId('select_help_category')
                     .setPlaceholder('📂 Kategorie auswählen...')
                     .addOptions([
                         { label: 'Allgemeines und Fragen', value: 'cat_allgemein', description: 'Fragen zu Ligaroutinen oder allgemeinem Ablauf', emoji: '❓' },
-                        { label: 'Regelwerk und Größenlimits', value: 'cat_regeln', description: 'Fragen zu IV-Größen (1,87m), Formationen etc.', emoji: '📜' },
+                        { label: 'Regelwerk und Größenlimits', value: 'cat_regeln', description: 'Fragen zum Regelwerk, Größen & Formationen', emoji: '📜' },
                         { label: 'Spielbetrieb und Disconnects', value: 'cat_spielbetrieb', description: 'Wartezeit, Abbruch vor/nach Min. 10, Live-Join', emoji: '⚽' },
                         { label: 'Streampflicht und VOD', value: 'cat_stream', description: 'Streamlinks, Aufnahmepflicht & VOD-Speicherung', emoji: '🎥' },
-                        { label: 'Proteste und Wertungen', value: 'cat_protest', description: 'Protest einreichen, Match-Facts & Beweise', emoji: '⚖️' },
+                        { label: 'Proreste und Wertungen', value: 'cat_protest', description: 'Protest einreichen, Match-Facts & Beweise', emoji: '⚖️' },
                         { label: 'Spielverschiebung und Termine', value: 'cat_termine', description: 'Terminabsprachen & Spielverschiebungen', emoji: '📅' },
                         { label: 'Technik, Webseite und Ränge', value: 'cat_technik', description: 'Probleme mit der Website, Rängen oder Discord', emoji: '🛠️' }
                     ]);
@@ -195,7 +195,7 @@ client.on('interactionCreate', async (interaction) => {
                 .setTitle(`📩 Support-Ticket: ${categoryName}`)
                 .setDescription(
                     `Hallo ${member}!\n\n` +
-                    `Deine Angaben wurden erfassst:\n\n` +
+                    `Deine Angaben wurden erfasst:\n\n` +
                     `• **Verein / Team:** ${teamName}\n` +
                     `• **Anliegen:**\n> ${details}\n\n` +
                     `Schreib einfach hier im Kanal weiter. Falls du direkt Hilfe von der Ligaleitung brauchst, klicke auf **"Admin rufen 🔔"**.`
@@ -216,24 +216,25 @@ client.on('interactionCreate', async (interaction) => {
             const row = new ActionRowBuilder().addComponents(callAdminBtn, closeBtn);
 
             await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
-
-            // Erst-Antwort der KI
-            try {
-                const aiResponse = await openai.chat.completions.create({
-                    model: "gpt-3.5-turbo",
-                    messages: [
-                        { role: "system", content: SYSTEM_RULESET },
-                        { role: "user", content: `Kategorie: ${categoryName}. Verein: ${teamName}. Anliegen: ${details}` }
-                    ],
-                    max_tokens: 500
-                });
-                const aiAnswer = aiResponse.choices[0].message.content;
-                await ticketChannel.send(`💬 **Information zum Anliegen:**\n${aiAnswer}`);
-            } catch (err) {
-                console.error("OpenAI Fehler bei Erst-Antwort:", err);
-            }
-
             await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
+
+            if (process.env.OPENAI_API_KEY) {
+                try {
+                    await ticketChannel.sendTyping();
+                    const aiResponse = await openai.chat.completions.create({
+                        model: "gpt-3.5-turbo",
+                        messages: [
+                            { role: "system", content: SYSTEM_RULESET },
+                            { role: "user", content: `Kategorie: ${categoryName}. Verein: ${teamName}. Anliegen: ${details}` }
+                        ],
+                        max_tokens: 400
+                    });
+                    const aiAnswer = aiResponse.choices[0].message.content;
+                    await ticketChannel.send(`💬 **Information zum Anliegen:**\n${aiAnswer}`);
+                } catch (err) {
+                    console.error("OpenAI Fehler bei Erst-Antwort:", err);
+                }
+            }
         }
 
         // 3. ADMIN RUFEN BUTTON
@@ -267,9 +268,10 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.channel.name.startsWith('ticket-')) return;
 
-    await message.channel.sendTyping();
+    if (!process.env.OPENAI_API_KEY) return;
 
     try {
+        await message.channel.sendTyping();
         const response = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
             messages: [
