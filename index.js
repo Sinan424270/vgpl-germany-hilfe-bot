@@ -34,13 +34,13 @@ const openai = new OpenAI({
 // CONFIG - EINGESETZTE IDs
 const CONFIG = {
     TOKEN: process.env.DISCORD_TOKEN ? process.env.DISCORD_TOKEN.trim() : '',
-    HELP_PANEL_CHANNEL_ID: '1527708821320106164',   // Hilfe-Kanal
-    TICKET_CATEGORY_ID: '1527708420788977674',     // Kategorie für Support-Tickets
+    HELP_PANEL_CHANNEL_ID: '1527708821320106164',   // Hilfe-Kanal ID
+    TICKET_CATEGORY_ID: '1527708420788977674',     // Kategorie für Support-Tickets ID
     ADMIN_ROLE_NAME: 'Admin',                      // Name der Admin-Rolle
     HEAD_ADMIN_ROLE_NAME: 'Head Admin'             // Name der Head Admin-Rolle
 };
 
-// Express Webserver für Render
+// Express Webserver für Render Keep-Alive
 const http = require('http');
 const port = process.env.PORT || 10000;
 http.createServer((req, res) => {
@@ -86,7 +86,7 @@ client.once('ready', async () => {
                     .setColor('#0099FF')
                     .setFooter({ text: 'VGPL Germany • Official Support' });
 
-                // DIE 7 KATEGORIEN MIT KORRIGIERTER BESCHREIBUNG
+                // DIE 7 EXAKTEN KATEGORIEN
                 const selectMenu = new StringSelectMenuBuilder()
                     .setCustomId('select_help_category')
                     .setPlaceholder('📂 Kategorie auswählen...')
@@ -95,7 +95,7 @@ client.once('ready', async () => {
                         { label: 'Regelwerk und Größenlimits', value: 'cat_regeln', description: 'Fragen zum Regelwerk, Größen & Formationen', emoji: '📜' },
                         { label: 'Spielbetrieb und Disconnects', value: 'cat_spielbetrieb', description: 'Wartezeit, Abbruch vor/nach Min. 10, Live-Join', emoji: '⚽' },
                         { label: 'Streampflicht und VOD', value: 'cat_stream', description: 'Streamlinks, Aufnahmepflicht & VOD-Speicherung', emoji: '🎥' },
-                        { label: 'Proreste und Wertungen', value: 'cat_protest', description: 'Protest einreichen, Match-Facts & Beweise', emoji: '⚖️' },
+                        { label: 'Proteste und Wertungen', value: 'cat_protest', description: 'Protest einreichen, Match-Facts & Beweise', emoji: '⚖️' },
                         { label: 'Spielverschiebung und Termine', value: 'cat_termine', description: 'Terminabsprachen & Spielverschiebungen', emoji: '📅' },
                         { label: 'Technik, Webseite und Ränge', value: 'cat_technik', description: 'Probleme mit der Website, Rängen oder Discord', emoji: '🛠️' }
                     ]);
@@ -174,16 +174,18 @@ client.on('interactionCreate', async (interaction) => {
 
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
+            const botMember = guild.members.me;
 
             const permissionOverwrites = [
                 { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
                 { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
-                { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageChannels] }
+                { id: botMember.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageChannels] }
             ];
 
             if (adminRole) permissionOverwrites.push({ id: adminRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] });
             if (headAdminRole) permissionOverwrites.push({ id: headAdminRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] });
 
+            // Kanal in der gewünschten Ticket-Kategorie erstellen
             const ticketChannel = await guild.channels.create({
                 name: `ticket-${categoryName.toLowerCase()}-${member.user.username.toLowerCase()}`,
                 type: ChannelType.GuildText,
@@ -191,6 +193,10 @@ client.on('interactionCreate', async (interaction) => {
                 permissionOverwrites: permissionOverwrites
             });
 
+            // WICHTIG: 500ms warten, damit Discord die Rechte für den neuen Kanal fertig verarbeitet hat!
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Willkommensnachricht + Embed bauen
             const welcomeEmbed = new EmbedBuilder()
                 .setTitle(`📩 Support-Ticket: ${categoryName}`)
                 .setDescription(
@@ -215,9 +221,17 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(callAdminBtn, closeBtn);
 
-            await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
+            // Nachrichten SOFORT in das Ticket senden
+            try {
+                await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
+            } catch (sendErr) {
+                console.error("Fehler beim Senden der Willkommensnachricht im Ticket:", sendErr);
+            }
+
+            // Rückmeldung an den User
             await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
 
+            // KI-Antwort generieren (falls OpenAI API Key vorhanden ist)
             if (process.env.OPENAI_API_KEY) {
                 try {
                     await ticketChannel.sendTyping();
@@ -253,7 +267,7 @@ client.on('interactionCreate', async (interaction) => {
             });
         }
 
-        // 4. TICKET SCHLIESSEN
+        // 4. TICKET SCHLIESSEN BUTTON
         if (interaction.isButton() && interaction.customId === 'close_ticket') {
             await interaction.reply({ content: '🔒 Ticket wird in 5 Sekunden gelöscht...' });
             setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
@@ -263,7 +277,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// 5. NACHRICHTEN IM TICKET
+// 5. FOLGENACHRICHTEN IM TICKET DURCH DIE KI BEANTWORTEN
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.channel.name.startsWith('ticket-')) return;
