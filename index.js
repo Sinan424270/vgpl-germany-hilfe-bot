@@ -158,7 +158,6 @@ client.on('interactionCreate', async (interaction) => {
 
             const categoryType = interaction.customId.replace('modal_ticket_', '');
            
-            // Formulardaten auslesen
             const teamName = interaction.fields.getTextInputValue('ticket_teamname') || 'Keine Angabe';
             const details = interaction.fields.getTextInputValue('ticket_details') || 'Keine Details angegeben';
             const member = interaction.member;
@@ -175,7 +174,6 @@ client.on('interactionCreate', async (interaction) => {
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
 
-            // Kanalberechtigungen
             const permissionOverwrites = [
                 {
                     id: guild.roles.everyone.id,
@@ -206,7 +204,6 @@ client.on('interactionCreate', async (interaction) => {
                 });
             }
 
-            // Ticket Kanal anlegen
             let ticketChannel;
             try {
                 ticketChannel = await guild.channels.create({
@@ -221,10 +218,8 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // Bestätigung an den Nutzer anzeigen
             await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
 
-            // Formular-Inhalt als Embed aufbauen
             const welcomeEmbed = new EmbedBuilder()
                 .setTitle(`📩 Support-Ticket: ${categoryName}`)
                 .setDescription(
@@ -237,7 +232,6 @@ client.on('interactionCreate', async (interaction) => {
                 .setColor('#0099FF')
                 .setTimestamp();
 
-            // GÜLTIGE BUTTON-STYLES (Primary = Blau/1, Danger = Rot/4)
             const callAdminBtn = new ButtonBuilder()
                 .setCustomId('btn_call_admin')
                 .setLabel('Admin rufen 🔔')
@@ -250,14 +244,12 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(callAdminBtn, closeBtn);
 
-            // Nachricht in den neu erstellten Ticket-Kanal senden
             try {
                 await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
             } catch (sendErr) {
                 console.error("Fehler beim Senden der Willkommensnachricht:", sendErr);
             }
 
-            // KI Erst-Antwort (falls OpenAI Key hinterlegt ist)
             if (openai) {
                 try {
                     await ticketChannel.sendTyping();
@@ -306,11 +298,23 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// 5. FOLGENACHRICHTEN IM TICKET DURCH DIE KI BEANTWORTEN
+// 5. FOLGENACHRICHTEN IM TICKET DURCH DIE KI BEANTWORTEN (NUR FÜR NORMALE USER / TICKET-ERSTELLER)
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.channel.name.startsWith('ticket-')) return;
     if (!openai) return;
+
+    // Prüfen, ob der Verfasser der Nachricht Admin oder Head Admin ist
+    const member = message.member;
+    if (member) {
+        const isAdmin = member.roles.cache.some(role =>
+            role.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase() ||
+            role.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase()
+        ) || member.permissions.has(PermissionFlagsBits.Administrator);
+
+        // Wenn der Verfasser ein Admin / Teammitglied ist -> KI antwortet NICHT!
+        if (isAdmin) return;
+    }
 
     try {
         await message.channel.sendTyping();
