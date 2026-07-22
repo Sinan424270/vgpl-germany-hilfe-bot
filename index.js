@@ -26,7 +26,7 @@ const client = new Client({
     ]
 });
 
-// OpenAI Config (prüft ob Key vorhanden)
+// OpenAI Config
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 // CONFIG - EINGESETZTE IDs
@@ -154,12 +154,12 @@ client.on('interactionCreate', async (interaction) => {
 
         // 2. FORMULAR ABGESENDET -> TICKET ERSTELLEN
         if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_ticket_')) {
-            // Unverzüglich deklarieren, um Timeout abzufangen
+            // Unverzüglich Interaktion reservieren
             await interaction.deferReply({ ephemeral: true });
 
             const categoryType = interaction.customId.replace('modal_ticket_', '');
             const teamName = interaction.fields.getTextInputValue('ticket_teamname') || 'Keine Angabe';
-            const details = interaction.fields.getTextInputValue('ticket_details');
+            const details = interaction.fields.getTextInputValue('ticket_details') || 'Keine Details angegeben';
             const member = interaction.member;
 
             let categoryName = 'Support';
@@ -174,6 +174,7 @@ client.on('interactionCreate', async (interaction) => {
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
 
+            // Kanalberechtigungen festlegen
             const permissionOverwrites = [
                 {
                     id: guild.roles.everyone.id,
@@ -187,17 +188,6 @@ client.on('interactionCreate', async (interaction) => {
                         PermissionFlagsBits.ReadMessageHistory,
                         PermissionFlagsBits.AttachFiles,
                         PermissionFlagsBits.EmbedLinks
-                    ]
-                },
-                {
-                    id: client.user.id,
-                    allow: [
-                        PermissionFlagsBits.ViewChannel,
-                        PermissionFlagsBits.SendMessages,
-                        PermissionFlagsBits.ReadMessageHistory,
-                        PermissionFlagsBits.AttachFiles,
-                        PermissionFlagsBits.EmbedLinks,
-                        PermissionFlagsBits.ManageChannels
                     ]
                 }
             ];
@@ -220,7 +210,7 @@ client.on('interactionCreate', async (interaction) => {
             try {
                 ticketChannel = await guild.channels.create({
                     name: `ticket-${categoryName.toLowerCase()}-${member.user.username.toLowerCase()}`,
-                    type: ChannelType.GuildText,
+                    type: ChannelType.GuildType ? ChannelType.GuildText : 0,
                     parent: CONFIG.TICKET_CATEGORY_ID,
                     permissionOverwrites: permissionOverwrites
                 });
@@ -230,7 +220,10 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // Embed & Buttons definieren
+            // SOFORT dem User antworten, damit "Bot denkt nach..." verschwindet
+            await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
+
+            // Nachricht und Buttons für den Ticket-Kanal definieren
             const welcomeEmbed = new EmbedBuilder()
                 .setTitle(`📩 Support-Ticket: ${categoryName}`)
                 .setDescription(
@@ -255,13 +248,19 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(callAdminBtn, closeBtn);
 
-            // ERST DIE NACHRICHT SCHREIBEN (Garantierte Zustellung)
-            await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
-           
-            // Ephemerale Bestätigung an den ersteller
-            await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
+            // ERSTVERSUCH: Nachricht mit Embed senden
+            try {
+                await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
+            } catch (sendErr) {
+                console.error("Fehler beim Embed-Senden, nutze Text-Fallback:", sendErr);
+                // FALLBACK: Falls Embed fehlschlägt, einfache Textnachricht senden
+                await ticketChannel.send({
+                    content: `📩 **Support-Ticket: ${categoryName}**\nHallo ${member}!\n\n**Verein / Team:** ${teamName}\n**Anliegen:**\n> ${details}\n\nEin Support-Mitarbeiter meldet sich in Kürze.`,
+                    components: [row]
+                }).catch(e => console.error("Kritischer Sendefehler:", e));
+            }
 
-            // JETZT ERST OPTIONAL DIE KI FRAGEN (stürzt nie den Kanal ab)
+            // OPTIONAL: KI Erst-Antwort
             if (openai) {
                 try {
                     await ticketChannel.sendTyping();
@@ -274,7 +273,7 @@ client.on('interactionCreate', async (interaction) => {
                         max_tokens: 400
                     });
                     const aiAnswer = aiResponse.choices[0].message.content;
-                    await ticketChannel.send(`💬 **Erste Einschätzung:**\n${aiAnswer}`);
+                    await ticketChannel.send(`💬 **Information zum Anliegen:**\n${aiAnswer}`);
                 } catch (err) {
                     console.error("OpenAI Fehler:", err);
                 }
@@ -310,7 +309,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// 5. FOLGENACHRICHTEN IM TICKET
+// 5. FOLGENACHRICHTEN IM TICKET DURCH DIE KI BEANTWORTEN
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.channel.name.startsWith('ticket-')) return;
