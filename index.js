@@ -154,7 +154,6 @@ client.on('interactionCreate', async (interaction) => {
 
         // 2. FORMULAR ABGESENDET -> TICKET ERSTELLEN
         if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_ticket_')) {
-            // Unverzüglich Interaktion reservieren
             await interaction.deferReply({ ephemeral: true });
 
             const categoryType = interaction.customId.replace('modal_ticket_', '');
@@ -173,8 +172,9 @@ client.on('interactionCreate', async (interaction) => {
 
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
+            const botUser = guild.members.me || client.user;
 
-            // Kanalberechtigungen festlegen
+            // Kanalberechtigungen (HIER WAR DER FEHLER: Bot braucht explizit ViewChannel & SendMessages)
             const permissionOverwrites = [
                 {
                     id: guild.roles.everyone.id,
@@ -188,6 +188,17 @@ client.on('interactionCreate', async (interaction) => {
                         PermissionFlagsBits.ReadMessageHistory,
                         PermissionFlagsBits.AttachFiles,
                         PermissionFlagsBits.EmbedLinks
+                    ]
+                },
+                {
+                    id: botUser.id,
+                    allow: [
+                        PermissionFlagsBits.ViewChannel,
+                        PermissionFlagsBits.SendMessages,
+                        PermissionFlagsBits.ReadMessageHistory,
+                        PermissionFlagsBits.AttachFiles,
+                        PermissionFlagsBits.EmbedLinks,
+                        PermissionFlagsBits.ManageChannels
                     ]
                 }
             ];
@@ -210,7 +221,7 @@ client.on('interactionCreate', async (interaction) => {
             try {
                 ticketChannel = await guild.channels.create({
                     name: `ticket-${categoryName.toLowerCase()}-${member.user.username.toLowerCase()}`,
-                    type: ChannelType.GuildType ? ChannelType.GuildText : 0,
+                    type: ChannelType.GuildText,
                     parent: CONFIG.TICKET_CATEGORY_ID,
                     permissionOverwrites: permissionOverwrites
                 });
@@ -220,7 +231,7 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
 
-            // SOFORT dem User antworten, damit "Bot denkt nach..." verschwindet
+            // Bestätigung an den Ersteller senden
             await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
 
             // Nachricht und Buttons für den Ticket-Kanal definieren
@@ -248,16 +259,11 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(callAdminBtn, closeBtn);
 
-            // ERSTVERSUCH: Nachricht mit Embed senden
+            // Nachschreiben im neuen Kanal
             try {
                 await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
             } catch (sendErr) {
-                console.error("Fehler beim Embed-Senden, nutze Text-Fallback:", sendErr);
-                // FALLBACK: Falls Embed fehlschlägt, einfache Textnachricht senden
-                await ticketChannel.send({
-                    content: `📩 **Support-Ticket: ${categoryName}**\nHallo ${member}!\n\n**Verein / Team:** ${teamName}\n**Anliegen:**\n> ${details}\n\nEin Support-Mitarbeiter meldet sich in Kürze.`,
-                    components: [row]
-                }).catch(e => console.error("Kritischer Sendefehler:", e));
+                console.error("Fehler beim Senden der Willkommensnachricht:", sendErr);
             }
 
             // OPTIONAL: KI Erst-Antwort
