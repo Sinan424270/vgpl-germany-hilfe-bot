@@ -26,10 +26,8 @@ const client = new Client({
     ]
 });
 
-// OpenAI Config
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+// OpenAI Config (prüft ob Key vorhanden)
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 // CONFIG - EINGESETZTE IDs
 const CONFIG = {
@@ -73,8 +71,8 @@ client.once('ready', async () => {
     try {
         const helpChannel = await client.channels.fetch(CONFIG.HELP_PANEL_CHANNEL_ID).catch(() => null);
         if (helpChannel) {
-            const messages = await helpChannel.messages.fetch({ limit: 10 });
-            const hasPanel = messages.some(msg => msg.embeds.length > 0 && msg.components.length > 0);
+            const messages = await helpChannel.messages.fetch({ limit: 10 }).catch(() => null);
+            const hasPanel = messages && messages.some(msg => msg.embeds.length > 0 && msg.components.length > 0);
 
             if (!hasPanel) {
                 const embed = new EmbedBuilder()
@@ -86,7 +84,6 @@ client.once('ready', async () => {
                     .setColor('#0099FF')
                     .setFooter({ text: 'VGPL Germany • Official Support' });
 
-                // DIE 7 EXAKTEN KATEGORIEN
                 const selectMenu = new StringSelectMenuBuilder()
                     .setCustomId('select_help_category')
                     .setPlaceholder('📂 Kategorie auswählen...')
@@ -152,10 +149,12 @@ client.on('interactionCreate', async (interaction) => {
             );
 
             await interaction.showModal(modal);
+            return;
         }
 
         // 2. FORMULAR ABGESENDET -> TICKET ERSTELLEN
         if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_ticket_')) {
+            // Unverzüglich deklarieren, um Timeout abzufangen
             await interaction.deferReply({ ephemeral: true });
 
             const categoryType = interaction.customId.replace('modal_ticket_', '');
@@ -174,29 +173,64 @@ client.on('interactionCreate', async (interaction) => {
 
             const adminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.ADMIN_ROLE_NAME.toLowerCase());
             const headAdminRole = guild.roles.cache.find(r => r.name.toLowerCase() === CONFIG.HEAD_ADMIN_ROLE_NAME.toLowerCase());
-            const botMember = guild.members.me;
 
             const permissionOverwrites = [
-                { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-                { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
-                { id: botMember.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ManageChannels] }
+                {
+                    id: guild.roles.everyone.id,
+                    deny: [PermissionFlagsBits.ViewChannel]
+                },
+                {
+                    id: member.id,
+                    allow: [
+                        PermissionFlagsBits.ViewChannel,
+                        PermissionFlagsBits.SendMessages,
+                        PermissionFlagsBits.ReadMessageHistory,
+                        PermissionFlagsBits.AttachFiles,
+                        PermissionFlagsBits.EmbedLinks
+                    ]
+                },
+                {
+                    id: client.user.id,
+                    allow: [
+                        PermissionFlagsBits.ViewChannel,
+                        PermissionFlagsBits.SendMessages,
+                        PermissionFlagsBits.ReadMessageHistory,
+                        PermissionFlagsBits.AttachFiles,
+                        PermissionFlagsBits.EmbedLinks,
+                        PermissionFlagsBits.ManageChannels
+                    ]
+                }
             ];
 
-            if (adminRole) permissionOverwrites.push({ id: adminRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] });
-            if (headAdminRole) permissionOverwrites.push({ id: headAdminRole.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] });
+            if (adminRole) {
+                permissionOverwrites.push({
+                    id: adminRole.id,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks]
+                });
+            }
+            if (headAdminRole) {
+                permissionOverwrites.push({
+                    id: headAdminRole.id,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks]
+                });
+            }
 
-            // Kanal in der gewünschten Ticket-Kategorie erstellen
-            const ticketChannel = await guild.channels.create({
-                name: `ticket-${categoryName.toLowerCase()}-${member.user.username.toLowerCase()}`,
-                type: ChannelType.GuildText,
-                parent: CONFIG.TICKET_CATEGORY_ID,
-                permissionOverwrites: permissionOverwrites
-            });
+            // Ticket Kanal anlegen
+            let ticketChannel;
+            try {
+                ticketChannel = await guild.channels.create({
+                    name: `ticket-${categoryName.toLowerCase()}-${member.user.username.toLowerCase()}`,
+                    type: ChannelType.GuildText,
+                    parent: CONFIG.TICKET_CATEGORY_ID,
+                    permissionOverwrites: permissionOverwrites
+                });
+            } catch (err) {
+                console.error("Kanal-Erstellung fehlgeschlagen:", err);
+                await interaction.editReply({ content: "❌ Der Ticket-Kanal konnte nicht erstellt werden." });
+                return;
+            }
 
-            // WICHTIG: 500ms warten, damit Discord die Rechte für den neuen Kanal fertig verarbeitet hat!
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Willkommensnachricht + Embed bauen
+            // Embed & Buttons definieren
             const welcomeEmbed = new EmbedBuilder()
                 .setTitle(`📩 Support-Ticket: ${categoryName}`)
                 .setDescription(
@@ -204,7 +238,7 @@ client.on('interactionCreate', async (interaction) => {
                     `Deine Angaben wurden erfasst:\n\n` +
                     `• **Verein / Team:** ${teamName}\n` +
                     `• **Anliegen:**\n> ${details}\n\n` +
-                    `Schreib einfach hier im Kanal weiter. Falls du direkt Hilfe von der Ligaleitung brauchst, klicke auf **"Admin rufen 🔔"**.`
+                    `Ein Support-Mitarbeiter wird sich in Kürze bei dir melden. Falls du dringend einen Admin brauchst, klicke auf **"Admin rufen 🔔"**.`
                 )
                 .setColor('#0099FF')
                 .setTimestamp();
@@ -221,18 +255,14 @@ client.on('interactionCreate', async (interaction) => {
 
             const row = new ActionRowBuilder().addComponents(callAdminBtn, closeBtn);
 
-            // Nachrichten SOFORT in das Ticket senden
-            try {
-                await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
-            } catch (sendErr) {
-                console.error("Fehler beim Senden der Willkommensnachricht im Ticket:", sendErr);
-            }
-
-            // Rückmeldung an den User
+            // ERST DIE NACHRICHT SCHREIBEN (Garantierte Zustellung)
+            await ticketChannel.send({ content: `${member}`, embeds: [welcomeEmbed], components: [row] });
+           
+            // Ephemerale Bestätigung an den ersteller
             await interaction.editReply({ content: `✅ Dein Ticket wurde erstellt: ${ticketChannel}` });
 
-            // KI-Antwort generieren (falls OpenAI API Key vorhanden ist)
-            if (process.env.OPENAI_API_KEY) {
+            // JETZT ERST OPTIONAL DIE KI FRAGEN (stürzt nie den Kanal ab)
+            if (openai) {
                 try {
                     await ticketChannel.sendTyping();
                     const aiResponse = await openai.chat.completions.create({
@@ -244,11 +274,12 @@ client.on('interactionCreate', async (interaction) => {
                         max_tokens: 400
                     });
                     const aiAnswer = aiResponse.choices[0].message.content;
-                    await ticketChannel.send(`💬 **Information zum Anliegen:**\n${aiAnswer}`);
+                    await ticketChannel.send(`💬 **Erste Einschätzung:**\n${aiAnswer}`);
                 } catch (err) {
-                    console.error("OpenAI Fehler bei Erst-Antwort:", err);
+                    console.error("OpenAI Fehler:", err);
                 }
             }
+            return;
         }
 
         // 3. ADMIN RUFEN BUTTON
@@ -265,24 +296,25 @@ client.on('interactionCreate', async (interaction) => {
                 content: pingMessage,
                 allowedMentions: { roles: mentions }
             });
+            return;
         }
 
         // 4. TICKET SCHLIESSEN BUTTON
         if (interaction.isButton() && interaction.customId === 'close_ticket') {
             await interaction.reply({ content: '🔒 Ticket wird in 5 Sekunden gelöscht...' });
             setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
+            return;
         }
     } catch (err) {
         console.error("Fehler bei Interaktion:", err);
     }
 });
 
-// 5. FOLGENACHRICHTEN IM TICKET DURCH DIE KI BEANTWORTEN
+// 5. FOLGENACHRICHTEN IM TICKET
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (!message.channel.name.startsWith('ticket-')) return;
-
-    if (!process.env.OPENAI_API_KEY) return;
+    if (!openai) return;
 
     try {
         await message.channel.sendTyping();
